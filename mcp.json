@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "mcp-z3-prover": {
+      "command": "mcp-z3-prover",
+      "env": {}
+    }
+  }
+}
