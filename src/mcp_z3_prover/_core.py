@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Any, Dict
+from typing import Any
 
 from fastmcp import FastMCP
 from z3 import (
@@ -96,7 +96,7 @@ def create_real_constant(value: float) -> str:
 
 
 @mcp.tool
-def add_constraint(constraint: str) -> Dict[str, str]:
+def add_constraint(constraint: str) -> dict[str, str]:
     """Add a constraint to the solver. Use variable references like 'bool:x', 'int:y', 'real:z' in expressions."""
     try:
         z3_constraint = parse_expression(constraint)
@@ -107,7 +107,7 @@ def add_constraint(constraint: str) -> Dict[str, str]:
 
 
 @mcp.tool
-def solve() -> Dict[str, Any]:
+def solve() -> dict[str, Any]:
     """Solve the current problem and return the result."""
     result = session.solver.check()
     session.solved = True
@@ -142,7 +142,7 @@ def get_model_value(variable: str) -> str:
 
 
 @mcp.tool
-def optimize(objective: str, maximize: bool = True) -> Dict[str, Any]:
+def optimize(objective: str, maximize: bool = True) -> dict[str, Any]:
     """Solve with optimization objective (maximize or minimize)."""
     session.optimizer = Optimize()
 
@@ -177,7 +177,7 @@ def optimize(objective: str, maximize: bool = True) -> Dict[str, Any]:
 
 
 @mcp.tool
-def reset_solver() -> Dict[str, str]:
+def reset_solver() -> dict[str, str]:
     """Reset the solver state (clear all variables, constraints, and model)."""
     session.solver = Solver()
     session.optimizer = None
@@ -189,6 +189,6 @@ def reset_solver() -> Dict[str, str]:
 
 
 @mcp.tool
-def list_variables() -> Dict[str, list[str]]:
+def list_variables() -> dict[str, list[str]]:
     """List all created variables."""
     return {"variables": list(session.variables.keys())}
