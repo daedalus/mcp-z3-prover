@@ -63,6 +63,29 @@ result = solve()
 x_val = get_model_value("int:x")
 ```
 
+### Integer Factorization Example
+
+```python
+# Factor n = 4295229443 where n = p * q with q <= sqrt(n)
+create_int_var("p")
+create_int_var("q")
+
+# Add constraints
+add_constraint("int:p * int:q == 4295229443")
+add_constraint("4295229443 > int:p")
+add_constraint("4295229443 > int:q")
+add_constraint("int:q <= 65537")  # sqrt(4295229443) ≈ 65537
+add_constraint("int:q > 1")
+add_constraint("int:p > 1")
+add_constraint("int:q % 2 != 0")  # q is odd
+add_constraint("int:p % 2 != 0")  # p is odd
+
+# Solve
+result = solve()
+# Returns: {"status": "sat", "model": {"p": "65539", "q": "65537"}}
+# Verification: 65537 * 65539 = 4295229443
+```
+
 ## Development
 
 ```bash
