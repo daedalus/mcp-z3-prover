@@ -19,6 +19,17 @@ mcp = FastMCP(name="mcp-z3-prover")
 
 @dataclass
 class Z3Session:
+    """A session container for Z3 solver state.
+
+    Attributes:
+        solver: The Z3 solver instance for checking satisfiability.
+        optimizer: The Z3 optimizer instance for optimization problems.
+        variables: Dictionary mapping variable names to Z3 expressions.
+        constants: Dictionary mapping constant names to Z3 constant values.
+        model: The solution model after solving.
+        solved: Whether the solver has been called successfully.
+    """
+
     solver: Solver = field(default_factory=Solver)
     optimizer: Optimize | None = None
     variables: dict[str, Any] = field(default_factory=dict)
@@ -31,7 +42,26 @@ session = Z3Session()
 
 
 def parse_expression(expr: str) -> Any:
-    """Parse a string expression into a Z3 expression."""
+    """Parse a string expression into a Z3 expression.
+
+    Replaces variable and constant references with their Z3 objects
+    and evaluates the expression safely.
+
+    Args:
+        expr: A string containing a Z3 expression with variable references.
+
+    Returns:
+        A Z3 expression object.
+
+    Example:
+        >>> create_int_var("x")
+        'int:x'
+        >>> create_int_constant(10)
+        'int:10'
+        >>> expr = parse_expression("int:x > int:10")
+        >>> expr
+        x > 10
+    """
     expr = expr.strip()
 
     for var_ref, var in session.variables.items():
@@ -49,7 +79,21 @@ def parse_expression(expr: str) -> Any:
 
 @mcp.tool
 def create_bool_var(name: str) -> str:
-    """Create a Boolean variable with the given name."""
+    """Create a Boolean variable with the given name.
+
+    Args:
+        name: The name of the boolean variable to create.
+
+    Returns:
+        The variable reference string in the format 'bool:<name>'.
+
+    Raises:
+        ValueError: If a variable with the given name already exists.
+
+    Example:
+        >>> create_bool_var("x")
+        'bool:x'
+    """
     var_name = f"bool:{name}"
     if var_name in session.variables:
         raise ValueError(f"Variable {name} already exists")
@@ -59,7 +103,21 @@ def create_bool_var(name: str) -> str:
 
 @mcp.tool
 def create_int_var(name: str) -> str:
-    """Create an Integer variable with the given name."""
+    """Create an Integer variable with the given name.
+
+    Args:
+        name: The name of the integer variable to create.
+
+    Returns:
+        The variable reference string in the format 'int:<name>'.
+
+    Raises:
+        ValueError: If a variable with the given name already exists.
+
+    Example:
+        >>> create_int_var("n")
+        'int:n'
+    """
     var_name = f"int:{name}"
     if var_name in session.variables:
         raise ValueError(f"Variable {name} already exists")
@@ -69,7 +127,21 @@ def create_int_var(name: str) -> str:
 
 @mcp.tool
 def create_real_var(name: str) -> str:
-    """Create a Real variable with the given name."""
+    """Create a Real (floating-point) variable with the given name.
+
+    Args:
+        name: The name of the real variable to create.
+
+    Returns:
+        The variable reference string in the format 'real:<name>'.
+
+    Raises:
+        ValueError: If a variable with the given name already exists.
+
+    Example:
+        >>> create_real_var("x")
+        'real:x'
+    """
     var_name = f"real:{name}"
     if var_name in session.variables:
         raise ValueError(f"Variable {name} already exists")
@@ -79,7 +151,18 @@ def create_real_var(name: str) -> str:
 
 @mcp.tool
 def create_int_constant(value: int) -> str:
-    """Create an integer constant with the given value."""
+    """Create an integer constant with the given value.
+
+    Args:
+        value: The integer value for the constant.
+
+    Returns:
+        The constant reference string in the format 'int:<value>'.
+
+    Example:
+        >>> create_int_constant(42)
+        'int:42'
+    """
     const_name = f"int:{value}"
     if const_name not in session.constants:
         session.constants[const_name] = IntVal(value)
@@ -88,7 +171,18 @@ def create_int_constant(value: int) -> str:
 
 @mcp.tool
 def create_real_constant(value: float) -> str:
-    """Create a real constant with the given value."""
+    """Create a real constant with the given value.
+
+    Args:
+        value: The real value for the constant.
+
+    Returns:
+        The constant reference string in the format 'real:<value>'.
+
+    Example:
+        >>> create_real_constant(3.14)
+        'real:3.14'
+    """
     const_name = f"real:{value}"
     if const_name not in session.constants:
         session.constants[const_name] = RealVal(value)
@@ -97,7 +191,28 @@ def create_real_constant(value: float) -> str:
 
 @mcp.tool
 def add_constraint(constraint: str) -> dict[str, str]:
-    """Add a constraint to the solver. Use variable references like 'bool:x', 'int:y', 'real:z' in expressions."""
+    """Add a constraint to the solver.
+
+    Use variable references like 'bool:x', 'int:y', 'real:z' in expressions.
+    Supports standard Z3 Python API syntax.
+
+    Args:
+        constraint: A Z3 constraint expression as a string.
+
+    Returns:
+        A dictionary with status and the constraint that was added.
+
+    Raises:
+        ValueError: If the constraint cannot be parsed.
+
+    Example:
+        >>> create_int_var("x")
+        'int:x'
+        >>> create_int_var("y")
+        'int:y'
+        >>> add_constraint("int:x + int:y > 10")
+        {'status': 'success', 'constraint': 'int:x + int:y > 10'}
+    """
     try:
         z3_constraint = parse_expression(constraint)
         session.solver.add(z3_constraint)
@@ -108,7 +223,27 @@ def add_constraint(constraint: str) -> dict[str, str]:
 
 @mcp.tool
 def solve() -> dict[str, Any]:
-    """Solve the current problem and return the result."""
+    """Solve the current problem and return the result.
+
+    Checks all added constraints for satisfiability and returns
+    a model if the problem is SAT.
+
+    Returns:
+        A dictionary containing:
+        - status: 'sat', 'unsat', or 'unknown'
+        - model: (if sat) A dictionary of variable assignments
+        - message: (if unsat/unknown) A description of the result
+
+    Example:
+        >>> create_int_var("x")
+        'int:x'
+        >>> create_int_constant(5)
+        'int:5'
+        >>> add_constraint("int:x > int:5")
+        {'status': 'success', 'constraint': 'int:x > int:5'}
+        >>> solve()
+        {'status': 'sat', 'model': {'x': '6'}}
+    """
     result = session.solver.check()
     session.solved = True
 
@@ -129,7 +264,28 @@ def solve() -> dict[str, Any]:
 
 @mcp.tool
 def get_model_value(variable: str) -> str:
-    """Get the value of a variable from the model after solving."""
+    """Get the value of a variable from the model after solving.
+
+    Args:
+        variable: The variable reference (e.g., 'int:x', 'bool:y').
+
+    Returns:
+        The value of the variable as a string.
+
+    Raises:
+        RuntimeError: If solve() has not been called yet.
+        ValueError: If the variable is not known.
+
+    Example:
+        >>> create_int_var("x")
+        'int:x'
+        >>> add_constraint("int:x == 42")
+        {'status': 'success', 'constraint': 'int:x == 42'}
+        >>> solve()
+        {'status': 'sat', 'model': {'x': '42'}}
+        >>> get_model_value("int:x")
+        '42'
+    """
     if not session.solved or session.model is None:
         raise RuntimeError("No model available. Call solve() first.")
 
@@ -143,7 +299,36 @@ def get_model_value(variable: str) -> str:
 
 @mcp.tool
 def optimize(objective: str, maximize: bool = True) -> dict[str, Any]:
-    """Solve with optimization objective (maximize or minimize)."""
+    """Solve with an optimization objective (maximize or minimize).
+
+    Finds the optimal value for the given objective function subject
+    to all added constraints.
+
+    Args:
+        objective: The expression to optimize (e.g., 'int:x + int:y').
+        maximize: If True, maximize the objective; if False, minimize.
+
+    Returns:
+        A dictionary containing:
+        - status: 'sat', 'unsat', or 'unknown'
+        - optimal_value: (if sat) The optimal value of the objective
+        - model: (if sat) A dictionary of variable assignments
+        - message: (if unsat/unknown) A description of the result
+
+    Example:
+        >>> create_int_var("x")
+        'int:x'
+        >>> create_int_var("y")
+        'int:y'
+        >>> add_constraint("int:x + int:y == 10")
+        {'status': 'success', 'constraint': 'int:x + int:y == 10'}
+        >>> add_constraint("int:x >= 0")
+        {'status': 'success', 'constraint': 'int:x >= 0'}
+        >>> add_constraint("int:y >= 0")
+        {'status': 'success', 'constraint': 'int:y >= 0'}
+        >>> optimize("int:x - int:y", maximize=True)
+        {'status': 'sat', 'optimal_value': '10', 'model': {'x': '10', 'y': '0'}}
+    """
     session.optimizer = Optimize()
 
     for constraint in session.solver.assertions():
@@ -178,7 +363,24 @@ def optimize(objective: str, maximize: bool = True) -> dict[str, Any]:
 
 @mcp.tool
 def reset_solver() -> dict[str, str]:
-    """Reset the solver state (clear all variables, constraints, and model)."""
+    """Reset the solver state.
+
+    Clears all variables, constants, constraints, and model data.
+    Useful when starting a new problem.
+
+    Returns:
+        A dictionary with status and a success message.
+
+    Example:
+        >>> create_int_var("x")
+        'int:x'
+        >>> add_constraint("int:x > 5")
+        {'status': 'success', 'constraint': 'int:x > 5'}
+        >>> reset_solver()
+        {'status': 'success', 'message': 'Solver reset successfully'}
+        >>> list_variables()
+        {'variables': []}
+    """
     session.solver = Solver()
     session.optimizer = None
     session.variables = {}
@@ -190,5 +392,17 @@ def reset_solver() -> dict[str, str]:
 
 @mcp.tool
 def list_variables() -> dict[str, list[str]]:
-    """List all created variables."""
+    """List all created variables.
+
+    Returns:
+        A dictionary containing a list of all variable references.
+
+    Example:
+        >>> create_int_var("x")
+        'int:x'
+        >>> create_bool_var("flag")
+        'bool:flag'
+        >>> list_variables()
+        {'variables': ['int:x', 'bool:flag']}
+    """
     return {"variables": list(session.variables.keys())}
