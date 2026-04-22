@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Dict
 
 from fastmcp import FastMCP
 from z3 import (
@@ -42,31 +42,26 @@ session = Z3Session()
 
 
 def parse_expression(expr: str) -> Any:
-    """Parse a string expression into a Z3 expression.
-
-    Replaces variable and constant references with their Z3 objects
-    and evaluates the expression safely.
-
-    Args:
-        expr: A string containing a Z3 expression with variable references.
-
-    Returns:
-        A Z3 expression object.
-
-    Example:
-        >>> create_int_var("x")
-        'int:x'
-        >>> create_int_constant(10)
-        'int:10'
-        >>> expr = parse_expression("int:x > int:10")
-        >>> expr
-        x > 10
-    """
+    import re
+    expr = expr.strip()
     expr = expr.strip()
 
-    for var_ref, var in session.variables.items():
-        if var_ref in expr:
-            expr = expr.replace(var_ref, f"_var_map['{var_ref}']")
+    short_to_full = {}
+    for var_ref in session.variables.keys():
+        if ":" in var_ref:
+            short_name = var_ref.split(":", 1)[1]
+            short_to_full[short_name] = var_ref
+            short_to_full[var_ref] = var_ref
+
+    def replace_var(match):
+        var_name = match.group(0)
+        if var_name in short_to_full:
+            full_ref = short_to_full[var_name]
+            return f"_var_map['{full_ref}']"
+        return match.group(0)
+
+    pattern = r"\b(?:bool|int|real):\w+|\b\w+\b"
+    expr = re.sub(pattern, replace_var, expr)
 
     for const_ref, const in session.constants.items():
         if const_ref in expr:
@@ -222,28 +217,22 @@ def add_constraint(constraint: str) -> dict[str, str]:
 
 
 @mcp.tool
-def solve() -> dict[str, Any]:
+def solve(timeout_ms: int = 30000) -> dict[str, Any]:
     """Solve the current problem and return the result.
 
     Checks all added constraints for satisfiability and returns
     a model if the problem is SAT.
+
+    Args:
+        timeout_ms: Timeout in milliseconds for the solver.
 
     Returns:
         A dictionary containing:
         - status: 'sat', 'unsat', or 'unknown'
         - model: (if sat) A dictionary of variable assignments
         - message: (if unsat/unknown) A description of the result
-
-    Example:
-        >>> create_int_var("x")
-        'int:x'
-        >>> create_int_constant(5)
-        'int:5'
-        >>> add_constraint("int:x > int:5")
-        {'status': 'success', 'constraint': 'int:x > int:5'}
-        >>> solve()
-        {'status': 'sat', 'model': {'x': '6'}}
     """
+    session.solver.set("timeout", timeout_ms)
     result = session.solver.check()
     session.solved = True
 
@@ -298,7 +287,7 @@ def get_model_value(variable: str) -> str:
 
 
 @mcp.tool
-def optimize(objective: str, maximize: bool = True) -> dict[str, Any]:
+def optimize(objective: str, maximize: bool = True, timeout_ms: int = 30000) -> dict[str, Any]:
     """Solve with an optimization objective (maximize or minimize).
 
     Finds the optimal value for the given objective function subject
@@ -307,6 +296,7 @@ def optimize(objective: str, maximize: bool = True) -> dict[str, Any]:
     Args:
         objective: The expression to optimize (e.g., 'int:x + int:y').
         maximize: If True, maximize the objective; if False, minimize.
+        timeout_ms: Timeout in milliseconds for the optimizer.
 
     Returns:
         A dictionary containing:
@@ -314,22 +304,9 @@ def optimize(objective: str, maximize: bool = True) -> dict[str, Any]:
         - optimal_value: (if sat) The optimal value of the objective
         - model: (if sat) A dictionary of variable assignments
         - message: (if unsat/unknown) A description of the result
-
-    Example:
-        >>> create_int_var("x")
-        'int:x'
-        >>> create_int_var("y")
-        'int:y'
-        >>> add_constraint("int:x + int:y == 10")
-        {'status': 'success', 'constraint': 'int:x + int:y == 10'}
-        >>> add_constraint("int:x >= 0")
-        {'status': 'success', 'constraint': 'int:x >= 0'}
-        >>> add_constraint("int:y >= 0")
-        {'status': 'success', 'constraint': 'int:y >= 0'}
-        >>> optimize("int:x - int:y", maximize=True)
-        {'status': 'sat', 'optimal_value': '10', 'model': {'x': '10', 'y': '0'}}
     """
     session.optimizer = Optimize()
+    session.optimizer.set("timeout", timeout_ms)
 
     for constraint in session.solver.assertions():
         session.optimizer.add(constraint)
