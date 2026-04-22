@@ -231,6 +231,16 @@ def solve(timeout_ms: int = 30000) -> dict[str, Any]:
         - status: 'sat', 'unsat', or 'unknown'
         - model: (if sat) A dictionary of variable assignments
         - message: (if unsat/unknown) A description of the result
+
+    Example:
+        >>> create_int_var("x")
+        'int:x'
+        >>> create_int_constant(5)
+        'int:5'
+        >>> add_constraint("int:x > int:5")
+        {'status': 'success', 'constraint': 'int:x > int:5'}
+        >>> solve()
+        {'status': 'sat', 'model': {'x': '6'}}
     """
     session.solver.set("timeout", timeout_ms)
     result = session.solver.check()
@@ -304,6 +314,20 @@ def optimize(objective: str, maximize: bool = True, timeout_ms: int = 30000) -> 
         - optimal_value: (if sat) The optimal value of the objective
         - model: (if sat) A dictionary of variable assignments
         - message: (if unsat/unknown) A description of the result
+
+    Example:
+        >>> create_int_var("x")
+        'int:x'
+        >>> create_int_var("y")
+        'int:y'
+        >>> add_constraint("int:x + int:y == 10")
+        {'status': 'success', 'constraint': 'int:x + int:y == 10'}
+        >>> add_constraint("int:x >= 0")
+        {'status': 'success', 'constraint': 'int:x >= 0'}
+        >>> add_constraint("int:y >= 0")
+        {'status': 'success', 'constraint': 'int:y >= 0'}
+        >>> optimize("int:x - int:y", maximize=True)
+        {'status': 'sat', 'optimal_value': '10', 'model': {'x': '10', 'y': '0'}}
     """
     session.optimizer = Optimize()
     session.optimizer.set("timeout", timeout_ms)
